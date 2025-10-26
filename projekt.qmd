@@ -1,0 +1,497 @@
+---
+title: "Projekt_mwipd"
+author: "Igor Kozak"
+format: html
+editor: visual
+toc: true  
+toc-title: "Spis treści"
+toc-position: left
+toc-depth: 4
+---
+
+## 100 Najdroższych Transferów w Historii Realu Madryt
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+library(readxl)
+library(magick)
+library(readr)
+plik <- "C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\herb.jpg"
+logo1 <- image_read(plik)
+logo1_max <- image_scale(logo1, "800x800")
+logo1_max
+```
+
+#### Wprowadzenie
+
+Projekt ma na celu szczegółową analizę najbardziej kosztownych transakcji transferowych, które miały miejsce w jednym z najbardziej prestiżowych klubów piłkarskich na świecie. Real Madryt, słynący z ogromnych wydatków na zawodników, nieustannie inwestuje w światowej klasy piłkarzy, aby utrzymać swoją dominację na boiskach krajowych i międzynarodowych.
+
+```{r, include = FALSE}
+
+plik_path <- "C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\Projekt0.xlsx"
+pilkarze <- read_excel(plik_path)
+pilkarze
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(grid)
+library(gridExtra)
+
+plik <- "C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\dane.jpg"  
+player_image <- image_read(plik)
+
+player_image_grob <- rasterGrob(player_image, width = unit(1, "npc"), height = unit(1, "npc"))
+
+player_data_text <- gTree(
+  children = gList(
+    textGrob("Zawartość Zbioru Danych:", gp = gpar(fontsize = 14, fontface = "bold"), x = 0.5, y = 0.95),  
+    textGrob("Name - imię i nazwisko piłkarza", x = 0.6, y = 0.85, gp = gpar(fontsize = 10)),
+    textGrob("Age - wiek zawodnika", x = 0.51, y = 0.75, gp = gpar(fontsize = 10)),
+    textGrob("Position - pozycja piłkarza", x = 0.55, y = 0.65, gp = gpar(fontsize = 10)),
+    textGrob("Nationality - narodowość gracza", x = 0.6, y = 0.55, gp = gpar(fontsize = 10)),
+    textGrob("League - liga z jakiej przyszedł", x = 0.59, y = 0.45, gp = gpar(fontsize = 10)),
+    textGrob("Season - w jakim sezonie przyszedł", x = 0.63, y = 0.35, gp = gpar(fontsize = 10)),
+    textGrob("TransferFee - kwota transferowa", x = 0.6, y = 0.25, gp = gpar(fontsize = 10)),
+    textGrob("Goals/Assists - liczba goli/asyst", x = 0.6, y = 0.15, gp = gpar(fontsize = 10))
+  )
+)
+
+grid.arrange(player_image_grob, player_data_text, ncol = 2)
+```
+
+```{r, include = FALSE}
+library(dplyr)
+
+pilkarze <- pilkarze %>%
+  mutate(
+    Age = as.numeric(Age) 
+  ) %>%
+  filter(!is.na(Age))
+average_age_by_league <- pilkarze %>%
+  group_by(League) %>%
+  summarise(average_age = mean(Age, na.rm = TRUE)) %>%
+  filter(!is.na(average_age)) 
+print(average_age_by_league)
+```
+
+#### Kwoty Transferowe
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(plotly)
+library(viridis)
+library(hrbrthemes)
+library(dplyr)
+
+position_order <- c("Bramkarz", "Lewy obrońca", "Środkowy obrońca", "Prawy obrońca","Defensywny pomocnik", "Lewy pomocnik", "Prawy pomocnik", "Środkowy pomocnik", "Ofensywny pomocnik", "Lewy napastnik", "Środkowy napastnik", "Prawy napastnik", "Cofnięty napastnik")
+pilkarze$Position <- factor(pilkarze$Position, levels = position_order)
+
+p <- ggplot(pilkarze, aes(x = Position, y = TransferFee, fill = Position, 
+                          text = paste("Pozycja:", Position, 
+  "<br>Kwota Transferu:", TransferFee, " mln €","<br>Zawodnik:", Name))) +
+  geom_bar(stat = "identity", alpha = 0.6) +  
+  scale_fill_viridis(discrete = TRUE) +         
+  ggtitle("Pozycje Zawodników w Zależności od Ceny Transferu") +
+  theme_minimal() +                              
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))  
+
+ggplotly(p, tooltip = "text")
+```
+
+Z wizualizacji wynika, że Real Madryt najwięcej inwestuje w zawodników grających w ofensywie oraz w drugiej linii. Jest to zgodne z ogólną tendencją na rynku transferowym, gdzie zawodnicy występujący wyżej w formacjach są drożsi, ponieważ to oni w największym stopniu wpływają na wyniki drużyny. Inwestycje w pozycje defensywne są znacznie mniejsze, co może wynikać z roli obrońców, którzy w kontekście współczesnego futbolu często nie generują tak dużych transferów.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(dplyr)
+library(plotly)
+pilkarze_normalized <- pilkarze %>%
+  mutate(
+    Season_num = as.numeric(sub("/.*", "", Season)) + 2000,  
+    TransferFee = as.numeric(gsub(",", ".", TransferFee)))
+
+pilkarze_normalized <- pilkarze_normalized %>%
+  mutate(
+    TransferLabel = ifelse(TransferFee > 0, paste("€", formatC(TransferFee, format = "f", digits = 2)), "Brak danych")
+  )
+
+wykres_s <- plot_ly(pilkarze_normalized, x = ~Season_num, y = ~TransferFee, 
+             type = 'scatter', mode = 'markers', 
+             marker = list(size = ~TransferFee / 5, 
+                           color = ~TransferFee, 
+                           colorscale = 'YlGnBu', showscale = TRUE),
+             text = ~paste("Season: ", Season_num, "<br>Transfer: ", TransferLabel),
+             hoverinfo = 'text') %>%
+  layout(title = "Wydatki klubu w poszczególnych sezonach",  
+         xaxis = list(title = 'Season', range = c(1998, 2024)), 
+         yaxis = list(title = 'Transfer Fee (mln €)'),
+         showlegend = FALSE)
+
+wykres_s
+
+```
+
+Z rezultatu rozważań widzimy ,że klub mimo przestrzeni lat stara sie głownie sięgać po zawodników o wartości poniżej 40 mln. €. Jednakże warto zauważyć ,że im blizej teraźniejszosci pojawia sie coraz więcej zawodników powyżej tej kwoty. Może być to spowodowane ,że football nieustannie sie rozwiją, wchodzą na rynek więksi inwestorzy ,a także zawodnicy stają się coraz bardziej medialni.
+
+#### Narodowości w szatni Realu
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(maps)
+library(geosphere)
+library(leaflet)
+library(dplyr)
+library(htmltools)
+library(sf)
+library(rworldmap)
+
+pilkarze$Nationality <- recode(pilkarze$Nationality,
+                               "Belgia" = "Belgium",
+                               "Anglia" = "United Kingdom",
+                               "Portugalia" = "Portugal",
+                               "Francja" = "France",
+                               "Kolumbia" = "Colombia",
+                               "Brazylia" = "Brazil",
+                               "Holandia" = "Netherlands",
+                               "Hiszpania" = "Spain",
+                               "Serbia" = "Serbia",
+                               "Chorwacja" = "Croatia",
+                               "Argentyna" = "Argentina",
+                               "Mali" = "Mali",
+                               "Niemcy" = "Germany",
+                               "Turcja" = "Turkey",
+                               "Maroko" = "Morocco",
+                               "Czarnogóra" = "Montenegro",
+                               "Ukraina" = "Ukraine",
+                               "Urugwaj" = "Uruguay",
+                               "Kamerun" = "Cameroon",
+                               "Dominikana" = "Dominican Rep.",
+                               "Bośnia i Hercegowina" = "Bosnia and Herz.",                                     "Kostaryka" = "Costa Rica",
+                               "Dania" = "Denmark",
+                               "Włochy" = "Italy")
+
+player_counts <- pilkarze %>%
+  group_by(Nationality) %>%
+  summarise(count = n())
+world_map <- getMap()
+world_map@data <- left_join(world_map@data, player_counts, by = c("NAME" = "Nationality"))
+
+mypalette <- colorBin(
+  palette = "YlOrBr", domain = world_map@data$count,
+  na.color = "transparent", bins = c(0, 3, 7, 12, 15, 19, 23)
+)
+
+mytext <- paste(
+  "Country: ", world_map@data$NAME, "<br/>",
+  "Players: ", world_map@data$count,
+  sep = ""
+) %>%
+  lapply(htmltools::HTML)
+
+leaflet(world_map) %>%
+  addTiles() %>%
+  setView(lat = 10, lng = 0, zoom = 2) %>%
+  addPolygons(
+    fillColor = ~mypalette(count),
+    stroke = TRUE,
+    fillOpacity = 0.9,
+    color = "white",
+    weight = 0.3,
+    label = mytext,
+    labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"), textsize = "13px", direction = "auto")
+  ) %>%
+  addLegend(pal = mypalette, values = ~count, opacity = 0.9, title = "Number of Players", position = "bottomleft")
+```
+
+Wyniki wizualizacji pokazują zróżnicowanie narodowościowe zawodników w drużynie Realu Madryt. Najwięcej piłkarzy pochodzących z ojczyzny przychodziło do klubu, co jest zgodne z tradycją Realu. Kolejnym istotnym krajem, z którego pochodzi wielu zawodników, jest Brazylia, co wskazuje że od lat Galctios inwestują w utalentowanych graczy z Ameryki Południowej. Mniejsze liczby zawodników pochodzą z krajów europejskich, takich jak Portugalia, Francja czy Włochy, co pokazuje również międzynarodowy charakter drużyny. Zasadniczo, Real Madryt gromadzi piłkarzy z różnych regionów świata, co wzbogaca drużynę pod względem umiejętności, doświadczenia i stylu gry.
+
+#### Wiek Zakupionych Zawodników
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+ggplot(average_age_by_league, aes(x = reorder(League, average_age), y = average_age,fill = average_age > mean(average_age, na.rm = TRUE))) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) + 
+  scale_fill_manual(values = c("red", "green"), labels = c("Poniżej średniej", "Powyżej średniej")) +
+  geom_hline(yintercept = mean(average_age_by_league$average_age, na.rm = TRUE), 
+  linetype = "dashed", color = "blue", size = 1) + 
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10), 
+    axis.title = element_text(size = 12), 
+    legend.position = "top", 
+    legend.title = element_blank(), 
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  ) + ggtitle("Średni Wiek Piłkarzy Według Ligi") +
+  xlab("LIGI") +
+  ylab("ŚREDNI WIEK") +
+  scale_y_continuous(
+    breaks = seq(
+      0, ceiling(max(average_age_by_league$average_age, na.rm = TRUE)),
+      by = 2
+    ),expand = c(0, 0))
+```
+
+Z analizy przedstawionego wykresu można zauważyć, że Real Madryt na rynku transferowym koncentruje się głównie na pozyskiwaniu młodych zawodników. Dodatkowo widzimy, że piłkarze poniżej średniej wieku pochodzą zazwyczaj z lig mniej prestiżowych, takich jak brazylijska, turecka czy serbska. Wyraźnie widać, że polityka transferowa klubu opiera się na pozyskiwaniu talentów z mniej znanych lig, aby rozwijać ich potencjał i szlifować ich niczym diamenty w świecie futbolu.
+
+Z kolei w przypadku zawodników powyżej średniego wieku Real sięga po graczy bardziej doświadczonych, sprawdzonych w czołowych ligach świata, głównie w tych należących do TOP 5. Wyjątki stanowią zawodnicy z lig takich jak holenderska czy portugalska, które plasują się blisko średniej i również dostarczają wartościowych graczy na rynek transferowy. Taka strategia pozwala klubowi łączyć młodych, perspektywicznych piłkarzy z zawodnikami o ugruntowanej renomie, co przyczynia się do budowy silnego i zrównoważonego zespołu.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(treemap)
+library(dplyr)
+
+pilkarze <- pilkarze %>%
+  mutate(PositionGroup = case_when(
+    Position %in% c("Bramkarz", "Lewy obrońca", "Prawy obrońca", "Środkowy obrońca") ~ "Obrona",
+    Position %in% c("Defensywny pomocnik", "Środkowy pomocnik", "Lewy pomocnik", "Prawy pomocnik", "Ofensywny pomocnik") ~ "Pomoc",
+    Position %in% c("Lewy napastnik", "Prawy napastnik", "Środkowy napastnik", "Cofnięty napastnik") ~ "Atak",
+    TRUE ~ "Inne"
+  ))
+
+data_treemap <- pilkarze %>%
+  group_by(PositionGroup, Age) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+treemap(data_treemap,
+        index = c("PositionGroup", "Age"),
+        vSize = "count",
+        vColor = "count",
+        draw = TRUE,
+        palette = "YlOrRd",
+        title = "",
+        border.col = "white")
+```
+
+Widzimy ,że Real Madryt prezentuje zrównoważoną politykę transferową, której celem jest budowa drużyny o zróżnicowanej strukturze wiekowej. Stawiając na młodsze talenty w ataku, doświadczonych zawodników w obronie oraz elastycznych pomocników, klub zapewnia sobie odpowiednią równowagę pomiędzy energią a doświadczeniem, co pozwala na osiąganie sukcesów zarówno w krótkim, jak i długim okresie. Tego typu podejście może również sprzyjać tworzeniu silnego i zgranego zespołu, zdolnego do rywalizowania na najwyższym poziomie w różnych warunkach.
+
+#### Statysyki Zawodników
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(fmsb)
+
+data <- pilkarze %>%
+  group_by(Position) %>%
+  summarise(avg_matches = mean(Matches, na.rm = TRUE)) %>%
+  ungroup()
+
+data$Position <- gsub("Środkowy pomocnik", "Śr. pomocnik", data$Position)
+data_radar <- as.data.frame(rbind(rep(max(data$avg_matches, na.rm = TRUE), nrow(data)), rep(min(data$avg_matches, na.rm = TRUE), nrow(data)),data$avg_matches))
+colnames(data_radar) <- data$Position
+
+par(mar=c(0,0,0,0)) 
+radarchart(data_radar, axistype=1,
+           pcol=rgb(0.2, 0.5, 0.5, 0.9), pfcol=rgb(0.2, 0.5, 0.5, 0.5), plwd=4,
+           cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0, 80, 20), cglwd=0.8, vlcex=0.8)
+
+```
+
+Z wizulizacji możemy jasno wyciągnać wnioski ,że kręgosłup zespołu czyli obrona i pomoc były obsadzane na dłuższe lata w klubie. Real kupował zazwyczaj zawodników na długie lata, nie rotując zbyt często na tak kluczowych pozycjach. Dodatkowo formacja atakaujaca też wykazuje duże wartosci średniej meczy co pokazuje, ogormny kusznt Realu w zakupie zawodników. Nieco mniejsze wartości wskazują pozycje cofniety napastnik, lewy pomocnik czy prawy jest to spowodowane ekseperymentami klubu w formacji , której próba jak widać była krótka i nie udana.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(gridExtra)
+average_goals <- pilkarze %>%
+  mutate(TransferFeeRange = case_when(
+    TransferFee >= 3 & TransferFee < 15 ~ "3-15 million €",
+    TransferFee >= 15 & TransferFee < 45 ~ "15-45 million €",
+    TransferFee >= 45 & TransferFee < 125 ~ "45-125 million €",
+    TRUE ~ "Other"
+  )) %>%
+  group_by(TransferFeeRange) %>%
+  summarise(AverageGoals = mean(Goals, na.rm = TRUE))
+
+average_assists <- pilkarze %>%
+  mutate(TransferFeeRange = case_when(
+    TransferFee >= 3 & TransferFee < 15 ~ "3-15 million €",
+    TransferFee >= 15 & TransferFee < 45 ~ "15-45 million €",
+    TransferFee >= 45 & TransferFee < 125 ~ "45-125 million €",
+    TRUE ~ "Other"
+  )) %>%
+  group_by(TransferFeeRange) %>%
+  summarise(AverageAssists = mean(Assists, na.rm = TRUE))
+
+gole <- average_goals %>%
+  filter(TransferFeeRange != "Other") %>%
+  mutate(fraction = AverageGoals / sum(AverageGoals),
+         ymax = cumsum(fraction),
+         ymin = c(0, head(ymax, n = -1)),
+         labelPosition = (ymax + ymin) / 2,
+         label = paste0(TransferFeeRange, "\n Goals: ", round(AverageGoals, 1)))
+
+asysty <- average_assists %>%
+  filter(TransferFeeRange != "Other") %>%
+  mutate(fraction = AverageAssists / sum(AverageAssists),
+         ymax = cumsum(fraction),
+         ymin = c(0, head(ymax, n = -1)),
+         labelPosition = (ymax + ymin) / 2,
+         label = paste0(TransferFeeRange, "\n Assists: ", round(AverageAssists, 1)))
+
+plot_goals <- ggplot(gole, aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 3, fill = TransferFeeRange)) +
+  geom_rect() +
+  geom_label(x = 3.5, aes(y = labelPosition, label = label), size = 4) +  # Smaller font size
+  scale_fill_brewer(palette = "Set2") +
+  coord_polar(theta = "y") +
+  xlim(c(2, 4)) +
+  theme_void() +
+  theme(legend.position = "none") +
+  ggtitle("Average Goals per Transfer Fee Range")
+
+plot_assists <- ggplot(asysty, aes(ymax = ymax, ymin = ymin, xmax = 4, xmin = 3, fill = TransferFeeRange)) +
+  geom_rect() +
+  geom_label(x = 3.5, aes(y = labelPosition, label = label), size = 4) +  # Smaller font size
+  scale_fill_brewer(palette = "Set3") +
+  coord_polar(theta = "y") +
+  xlim(c(2, 4)) +
+  theme_void() +
+  theme(legend.position = "none") +
+  ggtitle("Average Assists per Transfer Fee Range")
+
+grid.arrange(plot_goals, plot_assists, ncol = 2)
+```
+
+Wyniki jednoznacznie pokazują ,że Real Madryt, inwestując w zawodników za duże pieniądze, otrzymał od nich solidne zwroty w postaci wyników na boisku, potwierdzając skuteczność swoich transferów. Zawodnicy, którzy kosztowali więcej, faktycznie osiągali lepsze wyniki w grze, zarówno w liczbie bramek, jak i asyst.
+
+#### Analiza Regresji
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(car)
+pilkarze$TransferFee <- log(pilkarze$TransferFee)
+model_data <- pilkarze %>%
+  select(Age, Matches, Goals, Assists)
+
+model <- lm(TransferFee ~ Age + Matches + Goals + Assists, data = pilkarze)
+par(mfrow=c(1,2)) 
+
+plot(model$fitted.values, model$residuals, main = "Residuals vs Fitted", 
+     xlab = "Fitted values", ylab = "Residuals", pch = 20)
+abline(h = 0, col = "red")
+qqnorm(model$residuals, main = "Q-Q Plot", pch = 20)
+qqline(model$residuals, col = "red")
+par(mfrow=c(1,1))
+predictions <- predict(model, newdata = pilkarze)
+pilkarze$PredictedTransferFee <- exp(predictions)
+```
+
+Residuals vs Fitted: Wykres wskazuje, że reszty są rozproszone losowo wokół zera, co sugeruje, że model dobrze odwzorowuje dane. Brak wyraźnego wzorca wskazuje, że zmienne takie jak wiek, liczba meczów, gole i asysty mają liniowy wpływ na wartość transferu.
+
+Q-Q Plot: Punkty na wykresie Q-Q układają się blisko linii prostej, co wskazuje, że reszty mają rozkład zbliżony do normalnego. Jest to pozytywny znak, ponieważ normalność rozkładu reszt jest jednym z założeń analizy regresji.
+
+#### Gablota Pucharowa Realu Madryt
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(grid)
+library(gridExtra)
+puchar1 <- image_read("C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\puchar1.jpg")
+puchar2 <- image_read("C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\puchar2.jpg")
+puchar3 <- image_read("C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\puchar3.jpg")
+
+label1 <- textGrob("Champions League", gp=gpar(fontsize=14, fontface="bold"))
+label2 <- textGrob("La Liga", gp=gpar(fontsize=14, fontface="bold"))
+label3 <- textGrob("Copa del Rey", gp=gpar(fontsize=14, fontface="bold"))
+
+grid.arrange(
+  arrangeGrob(rasterGrob(puchar2), label2, ncol=1),  
+  arrangeGrob(rasterGrob(puchar1), label1, ncol=1),  
+  arrangeGrob(rasterGrob(puchar3), label3, ncol=1),  
+  ncol=3  
+)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(hrbrthemes)
+library(plotly)
+library(dplyr)
+
+pilkarze$season_group <- case_when(
+  grepl("91/92|92/93|93/94|94/95|95/96|96/97|97/98|98/99|99/00|00/01|01/02|02/03|03/04", pilkarze$Season) ~ "91/92 - 03/04",
+  grepl("04/05|05/06|06/07|07/08|08/09|09/10|10/11", pilkarze$Season) ~ "04/05 - 10/11",
+  grepl("11/12|12/13|13/14|14/15|15/16|16/17|17/18", pilkarze$Season) ~ "11/12 - 17/18",
+  grepl("18/19|19/20|20/21|21/22|22/23|23/24|24/25", pilkarze$Season) ~ "18/19 - 24/25"
+)
+
+pilkarze <- pilkarze %>% filter(!is.na(season_group))
+
+pilkarze$season_group <- factor(pilkarze$season_group,
+                               levels = c("91/92 - 03/04", "04/05 - 10/11", "11/12 - 17/18", "18/19 - 24/25"))
+
+box_data <- pilkarze %>%
+  group_by(season_group) %>%
+  summarise(Cups = list(Cups))   
+
+fig <- plot_ly(data = pilkarze, 
+               x = ~season_group, 
+               y = ~Cups, 
+               type = "box", 
+               boxpoints = "all",  
+               jitter = 0.3,  
+               marker = list(color = 'rgb(255, 165, 0)'), 
+               line = list(color = 'rgb(0,0,0)'),  
+               name = "Liczba Pucharów") %>%
+  layout(title = "Liczba pucharów w zależności od sezonu",
+         xaxis = list(title = "Sezon"),
+         yaxis = list(title = "Liczba pucharów"),
+         showlegend = FALSE)
+
+fig
+```
+
+Widzimy ,że w różnych przedziałach seoznowcyh średnia liczba pucharów zdobytych przez zawodników w klubie wykazuje różne zmienności. Z wykresu wynika ,że w okresie 11/12 - 18/18 Los Blancos najbardziej zdominowali świat, a to właśnie w tym okresie osiągneli słynną La Decime. W innych okresach czasu Real również utrzymywał stabilny poziom w rywalizacjach o puchary, co świadczy o ciągłej konkurencyjności drużyny na arenie międzynarodowej. A Dobra polityka transferowa klubu stale pomagała wzbogacać klubową gablotę puchorwą na przestrzeni lat.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(plotly)
+
+pilkarze$TransferFee <- round(pilkarze$TransferFee)
+
+data_3d <- pilkarze %>%
+  select(Cups, TransferFee, Matches)
+
+data_3d$labels <- paste("Transfer Fee: €", data_3d$TransferFee, 
+                        "<br>Matches: ", data_3d$Matches, 
+                        "<br>Cups: ", data_3d$Cups)
+
+plot_ly(data = data_3d, 
+        x = ~TransferFee, 
+        y = ~Matches, 
+        z = ~Cups, 
+        type = 'scatter3d', 
+        mode = 'markers',
+        text = ~labels, 
+        hoverinfo = "text") %>%
+  layout(title = "Relacja między wyceną transferu, liczbą meczów a liczbą zdobytych pucharów.",
+         scene = list(
+           xaxis = list(title = 'Wycena Transferu (mln. €)'),
+           yaxis = list(title = 'Liczba Meczów'),
+           zaxis = list(title = 'Liczba Pucharów')
+         ),margin = list(t = 100))
+```
+
+Z drugiej wizualizacji widzimy, że Real Madryt, inwestując w droższych zawodników, często osiągał podobne sukcesy co przy sprowadzaniu graczy z niższymi cenami transferów , co świadczy o szerokim rozwoju drużyny. Sugeruje to ,że większość zawodników miała podobną rolę w zespole w kontekście zdobywanych trofeów, niezależnie od wysokości ich transferów.
+
+#### Jedenastka marzeń Królewskich z największych transferów klubu
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+library(grid)
+library(gridExtra)
+library(magick)
+
+plik <- "C:\\Users\\igork\\OneDrive\\Pulpit\\Wizulizacja_Danych\\Projekt_real\\jedenastka.jpg"
+jedenastka <- image_read(plik)
+jedenastka1 <- image_scale(jedenastka, "1324x1324")
+
+players <- data.frame(
+  Name = c("Karim Benzema", "Ronaldo", "Zinédine Zidane", "Cristiano Ronaldo", "Luka Modric", 
+           "Toni Kroos", "Dani Carvajal", "Sergio Ramos", "Pepe", "Marcelo", "Thibaut Courtois"),
+  Matches = c(648, 177, 227, 438, 560, 465, 427, 671, 334, 546, 256),
+  Cups = c(30, 4, 7, 16, 28, 23, 27, 22, 15, 25, 14)
+)
+
+table_grob <- tableGrob(players, rows = NULL)
+
+title <- textGrob("Jedenastka marzeń królewskich z największych transferów", gp = gpar(fontsize = 18, fontface = "bold"))
+jedenastka_grob <- rasterGrob(jedenastka1, width = unit(1, "npc"), height = unit(1, "npc"))
+
+grid.arrange(jedenastka_grob, table_grob, ncol = 2, widths = c(0.5, 0.5))
+grid.text("Piłkarze od pozycji bramkarz-obrona-pomoc-atak",
+          x = 0.75, y = 0.05, just = "center", gp = gpar(fontsize = 10, fontface = "italic"))
+
+```
+
+## Podsumowanie
+
+Celem projektu było przeanalizowanie 100 największych transferów w historii Realu Madryt, aby zrozumieć, jak polityka transferowa klubu wygladała oraz czym sie cechowała. W ramach analizy, przeprowadziłem szczegółową eksplorację danych na temat zawodników, którzy dołączyli do klubu. Ruchy transferowe Realu Madryt, są oparta na pozyskiwaniu zawodników światowej klasy, co umożliwia drużynie nie tylko osiąganie sukcesów sportowych, ale także umocnia pozycję klubu na rynku międzynarodowym. Dzięki odpowiednim inwestycjom w zróżnicowaną kadrę, Galacticos przez lata pozostaje jednym z najlepszych klubów piłkarskich na świecie, nieustannie walcząc o najwyższe trofea.
