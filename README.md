@@ -1,7 +1,7 @@
 ## Analiza transferów Realu Madryt
 Projekt przedstawia analizę polityki transferowej hiszpańskiego klubu piłkarskiego Realu Madryt na podstawie najbardziej kosztownych transferów w historii klubu.
 
-##Cel projektu
+## Cel projektu
 Analiza koncetruje się na kilku kluczowych aspektach transferów zawodników, takich jak:
  - narodowość piłkarzy
  - wiek w momencie transferu
@@ -12,11 +12,12 @@ Analiza koncetruje się na kilku kluczowych aspektach transferów zawodników, t
 
 Projekt ma na celu lepsze zrozumienie strategii transferowej Realu Madryt oraz identyfikację potencjalnych zależności między inwestycjami transferowymi a wynikami sportowymi klubu.
 
-##Źródło danych
+## Źródło danych
 Dane zostały pozyskane poprzez web scraping ze strony: https://www.transfermarkt.pl/.
+
 Stan danych: styczeń 2024
 
-##Metody analizy
+## Metody analizy
 Analiza została wykonana w języku *R* i obejmuje:
  - scraping i przygotowanie danych
  - eksploracyjną analizę danych (EDA)
